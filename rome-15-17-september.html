@@ -1,0 +1,362 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Rome, 15-17 September - three routes</title>
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css">
+<style>
+  :root{
+    --ink:#17161C;
+    --paper:#FFFFFF;
+    --rail:#E4DFD6;
+    --wash:#F6F4F0;
+    --muted:#6E6A63;
+    --accent:#B2372E;
+    --display:Optima,"Palatino Linotype",Palatino,"Book Antiqua",Georgia,serif;
+    --text:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+  }
+  *{box-sizing:border-box}
+  html,body{margin:0;height:100%}
+  body{font-family:var(--text);color:var(--ink);background:var(--wash);-webkit-font-smoothing:antialiased}
+  #app{display:flex;flex-direction:column;height:100%}
+
+  header{background:var(--paper);border-bottom:1px solid var(--rail);padding:10px 14px 0;flex:0 0 auto}
+  .titlebar{display:flex;align-items:baseline;gap:10px;flex-wrap:wrap;margin-bottom:8px}
+  h1{font-family:var(--display);font-weight:400;font-size:20px;margin:0;line-height:1.1}
+  .base{font-size:12px;color:var(--muted)}
+  .plans{display:flex;border-bottom:1px solid var(--rail);margin:0 -14px;padding:0 8px}
+  .plan-tab{appearance:none;background:none;border:0;border-bottom:3px solid transparent;
+    font-family:var(--text);font-size:13px;color:var(--muted);padding:8px 10px 9px;cursor:pointer;
+    text-align:left;line-height:1.25}
+  .plan-tab b{display:block;font-family:var(--display);font-size:15px;font-weight:400;color:var(--ink)}
+  .plan-tab[aria-selected="true"]{color:var(--ink);border-bottom-color:var(--accent)}
+  .plan-tab[aria-selected="true"] b{color:var(--accent)}
+  .plan-tab:focus-visible{outline:2px solid var(--accent);outline-offset:-2px}
+  .days{display:flex;gap:6px;padding:9px 0;overflow-x:auto;scrollbar-width:none;align-items:center}
+  .days::-webkit-scrollbar{display:none}
+  .day-chip{appearance:none;background:var(--paper);border:1px solid var(--rail);border-radius:2px;
+    font-family:var(--text);font-size:12.5px;color:var(--muted);padding:5px 11px;white-space:nowrap;
+    cursor:pointer;display:flex;align-items:center;gap:6px}
+  .day-chip i{width:9px;height:9px;border-radius:50%;display:inline-block}
+  .day-chip[aria-pressed="true"]{background:var(--ink);border-color:var(--ink);color:#fff}
+  .day-chip:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+
+  main{flex:1 1 auto;display:flex;flex-direction:column;min-height:0}
+  .maparea{position:relative;flex:0 0 46vh}
+  #map{height:100%;background:#DCD9D2}
+  .tilewarn{display:none;position:absolute;z-index:500;left:8px;top:8px;right:8px;background:var(--paper);
+    border:1px solid var(--rail);padding:7px 9px;font-size:12px;margin:0}
+
+  #list{flex:1 1 auto;overflow-y:auto;background:var(--paper);border-top:1px solid var(--rail)}
+  .daygroup{border-bottom:1px solid var(--rail)}
+  .dayhead{display:flex;justify-content:space-between;align-items:baseline;gap:10px;padding:12px 14px 7px;background:var(--wash)}
+  .dayhead h2{font-family:var(--display);font-weight:400;font-size:16px;margin:0;display:flex;align-items:center;gap:7px}
+  .dayhead h2 i{width:10px;height:10px;border-radius:50%;flex:0 0 auto}
+  .dayhead span{font-size:12px;color:var(--muted);text-align:right;flex:0 0 auto;line-height:1.4}
+  .stop{display:grid;grid-template-columns:26px 50px 1fr;gap:9px;align-items:start;width:100%;text-align:left;
+    background:none;border:0;font-family:var(--text);padding:9px 14px;cursor:pointer}
+  .stop:hover,.stop:focus-visible,.stop.is-active{background:var(--wash);outline:none}
+  .pin{width:24px;height:24px;border-radius:50%;color:#fff;display:flex;align-items:center;justify-content:center;
+    font-size:12px;font-weight:600;margin-top:1px;flex:0 0 auto}
+  .pin.home{background:var(--ink);border-radius:3px;font-size:13px}
+  .when{font-size:12.5px;color:var(--muted);padding-top:4px;font-variant-numeric:tabular-nums}
+  .what{min-width:0}
+  .what strong{display:block;font-weight:600;font-size:14.5px;line-height:1.3}
+  .what em{display:block;font-style:normal;font-size:13px;color:var(--muted);line-height:1.45;margin-top:2px}
+  .book{display:inline-block;margin-top:5px;font-size:11.5px;color:var(--accent);border:1px solid currentColor;padding:1px 6px}
+  .leg{display:grid;grid-template-columns:26px 50px 1fr;gap:9px;padding:0 14px;font-size:12px;color:var(--muted)}
+  .leg .rule{display:flex;justify-content:center}
+  .leg .rule::before{content:"";width:1px;background:var(--rail);height:100%;min-height:16px}
+  .leg .val{grid-column:3;padding:3px 0;font-variant-numeric:tabular-nums}
+  .leg.metro .val{color:var(--ink)}
+
+  footer{flex:0 0 auto;background:var(--paper);border-top:1px solid var(--rail);padding:9px 14px;
+    font-size:11.5px;color:var(--muted)}
+
+  .marker-num{color:#fff;border:2px solid #fff;border-radius:50%;width:26px;height:26px;display:flex;
+    align-items:center;justify-content:center;font:600 12px/1 var(--text);box-shadow:0 1px 4px rgba(0,0,0,.35)}
+  .marker-home{background:#17161C;border:2px solid #fff;border-radius:4px;width:22px;height:22px;
+    display:flex;align-items:center;justify-content:center;color:#fff;font:600 12px/1 var(--text);
+    box-shadow:0 1px 4px rgba(0,0,0,.35)}
+  .leg-pill{background:rgba(255,255,255,.94);border:1px solid var(--rail);border-radius:9px;
+    padding:1px 6px;font:500 10.5px/1.5 var(--text);white-space:nowrap;pointer-events:none;
+    box-shadow:0 1px 2px rgba(0,0,0,.12)}
+  .leaflet-popup-content{font-family:var(--text);font-size:13px;margin:10px 12px;line-height:1.45}
+  .leaflet-popup-content b{font-size:14px}
+  .leaflet-popup-content a{color:var(--accent)}
+  .leaflet-popup-content .meta{color:var(--muted);font-size:12px}
+
+  @media (min-width:820px){
+    main{flex-direction:row-reverse}
+    .maparea{flex:1 1 auto}
+    #list{flex:0 0 390px;border-top:0;border-right:1px solid var(--rail)}
+  }
+  @media (prefers-reduced-motion:reduce){*{transition:none!important}}
+</style>
+</head>
+<body>
+<div id="app">
+  <header>
+    <div class="titlebar">
+      <h1>Rome, 15-17 September</h1>
+      <span class="base">Base: Via in Lucina 10</span>
+    </div>
+    <div class="plans" role="tablist" id="plans"></div>
+    <div class="days" id="days"></div>
+  </header>
+  <main>
+    <div class="maparea">
+      <div id="map"></div>
+      <p class="tilewarn" id="tilewarn">Map tiles are not loading. The routes and stops below still work.</p>
+    </div>
+    <div id="list"></div>
+  </main>
+  <footer id="foot"></footer>
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
+<script>
+/* via: overrides the leg ARRIVING at this stop. m = metres, min = minutes, mode = walk|metro */
+const PLANS = [
+ {
+  id:"a", label:"Plan A", name:"The icons", color:"#B2372E",
+  blurb:"Colosseum and Vatican in one trip. Most famous sights, most tickets, least slack.",
+  days:[
+   {key:"tue", label:"Tue 15", title:"Afternoon: the old centre", stops:[
+    {t:"13:30", n:"Via in Lucina 10", lat:41.9017,lng:12.4783, d:"Drop bags, eat lunch on the square.", home:true},
+    {t:"15:00", n:"Pantheon", lat:41.8986,lng:12.4769, d:"Timed entry, 7 EUR. Go straight in, then sit outside with a coffee.", book:true, via:{m:600,min:8}},
+    {t:"15:50", n:"Sant'Eustachio il Caffe", lat:41.8985,lng:12.4757, d:"The city's benchmark espresso. Say senza zucchero if you don't want it sweet."},
+    {t:"16:20", n:"San Luigi dei Francesi", lat:41.8990,lng:12.4746, d:"Three Caravaggios in a side chapel. Free, two minutes, unmissable."},
+    {t:"16:50", n:"Piazza Navona", lat:41.8992,lng:12.4731, d:"Bernini's river fountain on the footprint of Domitian's stadium."},
+    {t:"17:30", n:"Campo de' Fiori", lat:41.8955,lng:12.4723, d:"Market packs up early; the square is better as an aperitivo stop."},
+    {t:"18:30", n:"Terrazza del Vittoriano", lat:41.8947,lng:12.4831, d:"Glass lift to the roof for the best sunset overview of the centre.", via:{m:1000,min:14}},
+    {t:"20:00", n:"Trevi Fountain", lat:41.9009,lng:12.4833, d:"Lit up, still crowded, worth it. Ten minutes from the flat."}
+   ]},
+   {key:"wed", label:"Wed 16", title:"Ancient Rome, then the Vatican", stops:[
+    {t:"08:30", n:"Colosseum", lat:41.8902,lng:12.4922, d:"First slot. 30 min walk from the flat or bus 51 down Via del Corso. Ticket is nominal, bring ID.", book:true},
+    {t:"10:15", n:"Roman Forum", lat:41.8925,lng:12.4853, d:"Enter from Via Sacra, walk the length of it uphill."},
+    {t:"11:30", n:"Palatine Hill", lat:41.8892,lng:12.4874, d:"Same ticket. Shade, imperial palaces, and the balcony over the Circus Maximus."},
+    {t:"12:45", n:"Lunch in Monti", lat:41.8944,lng:12.4906, d:"Via dei Serpenti or Via del Boschetto, ten minutes from the Forum exit.", via:{m:900,min:13}},
+    {t:"14:15", n:"Metro Cavour", lat:41.8955,lng:12.4930, d:"Line B to Termini, change to line A for Ottaviano."},
+    {t:"15:00", n:"Vatican Museums", lat:41.9065,lng:12.4536, d:"Booked slot. Head for the Sistine Chapel first, backtrack afterwards.", book:true, via:{mode:"metro",min:30,m:null}},
+    {t:"18:00", n:"St Peter's Square", lat:41.9022,lng:12.4568, d:"Long way round the Vatican walls. Basilica queues are heavy on Wednesday afternoons.", via:{m:1200,min:16}},
+    {t:"19:00", n:"Ponte Sant'Angelo", lat:41.9014,lng:12.4665, d:"Bernini's angels at dusk, then walk into the centre for dinner.", via:{m:1000,min:13}}
+   ]},
+   {key:"thu", label:"Thu 17", title:"Morning loop, then out", stops:[
+    {t:"08:15", n:"Trevi Fountain", lat:41.9009,lng:12.4833, d:"Early is the only time it is calm. A completely different place at this hour."},
+    {t:"08:50", n:"Spanish Steps", lat:41.9059,lng:12.4823, d:"Up the steps for the view down Via Condotti."},
+    {t:"09:45", n:"Sant'Ignazio", lat:41.8990,lng:12.4794, d:"Painted ceiling that fakes a dome. Stand on the marble disc in the nave."},
+    {t:"10:20", n:"Piazza di Pietra", lat:41.8993,lng:12.4795, d:"Eleven columns of Hadrian's temple built into a later facade."},
+    {t:"11:00", n:"Via in Lucina 10", lat:41.9017,lng:12.4783, d:"Collect bags. Taxi to Termini is 15 min, to Fiumicino about 45.", home:true}
+   ]}
+  ]
+ },
+ {
+  id:"b", label:"Plan B", name:"Ancient Rome, deeply", color:"#2E6F63",
+  blurb:"Skip the Vatican entirely and spend the time on the Roman city. Fewer sights, far more of each.",
+  days:[
+   {key:"tue", label:"Tue 15", title:"Afternoon: the Capitol", stops:[
+    {t:"13:30", n:"Via in Lucina 10", lat:41.9017,lng:12.4783, d:"Drop bags, lunch nearby.", home:true},
+    {t:"15:00", n:"Largo di Torre Argentina", lat:41.8955,lng:12.4767, d:"Four Republican temples, now open at street level. Caesar was killed here.", via:{m:900,min:12}},
+    {t:"15:45", n:"Portico d'Ottavia", lat:41.8925,lng:12.4780, d:"The Ghetto's main street: ancient portico, medieval walls, fish-market inscriptions."},
+    {t:"16:15", n:"Teatro di Marcello", lat:41.8919,lng:12.4797, d:"Augustan theatre with apartments built on top. The prototype for the Colosseum."},
+    {t:"16:45", n:"Capitoline Museums", lat:41.8931,lng:12.4826, d:"She-wolf, Marcus Aurelius, and the Tabularium gallery over the Forum.", book:true, via:{m:400,min:7}},
+    {t:"18:45", n:"Via del Campidoglio", lat:41.8933,lng:12.4841, d:"The terrace behind the palace: the classic free view over the Forum at dusk."},
+    {t:"20:00", n:"Dinner in the Ghetto", lat:41.8928,lng:12.4775, d:"Fried artichokes are the local dish. Most kitchens open at 19:30."}
+   ]},
+   {key:"wed", label:"Wed 16", title:"Colosseum to the Aventine", stops:[
+    {t:"08:30", n:"Colosseum", lat:41.8902,lng:12.4922, d:"First slot, before the heat and the tour groups. 30 min walk from the flat.", book:true},
+    {t:"10:30", n:"Roman Forum and Palatine", lat:41.8925,lng:12.4853, d:"Same ticket. Give it two hours rather than the usual forty minutes."},
+    {t:"13:00", n:"Lunch in Monti", lat:41.8944,lng:12.4906, d:"The neighbourhood behind the Forum: normal prices, short walk.", via:{m:900,min:13}},
+    {t:"14:30", n:"Basilica di San Clemente", lat:41.8894,lng:12.4975, d:"Three cities stacked: 12th-c church, 4th-c basilica, Mithraic temple. Book the lower levels.", book:true, via:{m:1000,min:14}},
+    {t:"16:00", n:"Baths of Caracalla", lat:41.8790,lng:12.4923, d:"Vast, empty, the best sense of imperial scale in Rome. Last entry around 18:00. Consider a taxi.", book:true, via:{m:1400,min:19}},
+    {t:"17:45", n:"Circus Maximus", lat:41.8859,lng:12.4853, d:"Cut across the grass and climb the Aventine on the far side.", via:{m:1100,min:15}},
+    {t:"18:30", n:"Giardino degli Aranci", lat:41.8843,lng:12.4790, d:"Orange garden with a terrace over the river. Uphill. Keyhole view 100 m further on.", via:{m:800,min:14}},
+    {t:"20:00", n:"Dinner in Testaccio", lat:41.8760,lng:12.4750, d:"Downhill from the Aventine. Roman offal classics, or pizza at Da Remo.", via:{m:1300,min:17}}
+   ]},
+   {key:"thu", label:"Thu 17", title:"Augustus and Hadrian", stops:[
+    {t:"08:30", n:"Pantheon", lat:41.8986,lng:12.4769, d:"First slot: nearly empty, and the light shaft is at its steepest.", book:true},
+    {t:"09:30", n:"Piazza Navona", lat:41.8992,lng:12.4731, d:"The shape is the stadium of Domitian. The arena floor is 4 m below you."},
+    {t:"10:15", n:"Mausoleum of Augustus", lat:41.9066,lng:12.4766, d:"The drum is visible from the street even without going in.", via:{m:1200,min:16}},
+    {t:"10:45", n:"Ara Pacis", lat:41.9058,lng:12.4757, d:"Augustus's altar in a Richard Meier box. Small, cool, quick."},
+    {t:"11:30", n:"Via in Lucina 10", lat:41.9017,lng:12.4783, d:"Five minutes back to the flat.", home:true}
+   ]}
+  ]
+ },
+ {
+  id:"c", label:"Plan C", name:"Rome without queues", color:"#A2740F",
+  blurb:"One booked museum, otherwise churches, piazzas, viewpoints and long lunches. The least stressful of the three.",
+  days:[
+   {key:"tue", label:"Tue 15", title:"Afternoon: across the river", stops:[
+    {t:"13:30", n:"Via in Lucina 10", lat:41.9017,lng:12.4783, d:"Drop bags and go straight out.", home:true},
+    {t:"14:15", n:"Lunch at Roscioli", lat:41.8944,lng:12.4735, d:"Salumeria for a sit-down, the bakery two doors down for pizza bianca. Book the former.", via:{m:1100,min:15}},
+    {t:"15:15", n:"Via Giulia", lat:41.8955,lng:12.4665, d:"Straight Renaissance street, almost no traffic, ivy arch halfway along."},
+    {t:"16:00", n:"Ponte Sisto", lat:41.8934,lng:12.4700, d:"Cross into Trastevere on foot."},
+    {t:"16:30", n:"Santa Maria in Trastevere", lat:41.8894,lng:12.4696, d:"Gold 12th-century apse mosaics, free. The square outside is the neighbourhood's living room."},
+    {t:"17:30", n:"Trastevere backstreets", lat:41.8880,lng:12.4720, d:"Vicolo del Cinque, Piazza de' Renzi. Aperitivo wherever looks good."},
+    {t:"19:00", n:"Gianicolo terrace", lat:41.8917,lng:12.4614, d:"Steep climb for the best panorama in Rome. Sunset is around 19:25.", via:{m:1000,min:20}},
+    {t:"20:30", n:"Dinner in Trastevere", lat:41.8887,lng:12.4757, d:"Da Enzo al 29 or Tonnarello. Both queue, neither takes long.", via:{m:1300,min:16}}
+   ]},
+   {key:"wed", label:"Wed 16", title:"Bernini, then the north end", stops:[
+    {t:"09:00", n:"Galleria Borghese", lat:41.9142,lng:12.4922, d:"Strict 2-hour slot, no walk-ins. 35 min walk from the flat, or 10 by taxi.", book:true},
+    {t:"11:15", n:"Villa Borghese park", lat:41.9128,lng:12.4855, d:"Walk out west through the pines instead of taking a taxi."},
+    {t:"11:50", n:"Pincio terrace", lat:41.9112,lng:12.4790, d:"Looks straight down onto Piazza del Popolo and across to St Peter's."},
+    {t:"12:20", n:"Santa Maria del Popolo", lat:41.9112,lng:12.4761, d:"Two more Caravaggios and a Bernini chapel, free, usually empty.", via:{m:500,min:8}},
+    {t:"13:00", n:"Lunch off Via del Babuino", lat:41.9085,lng:12.4795, d:"Or buy supplies and eat up on the Pincio."},
+    {t:"14:30", n:"Via Margutta", lat:41.9078,lng:12.4808, d:"Studio street behind the Spanish Steps, quiet even in September."},
+    {t:"15:30", n:"Palazzo Doria Pamphilj", lat:41.8973,lng:12.4805, d:"Still a family palace. The audio guide is narrated by the prince and is the best in Rome.", via:{m:1400,min:18}},
+    {t:"17:30", n:"Sant'Ignazio", lat:41.8990,lng:12.4794, d:"The painted false dome, two minutes from the palace door."},
+    {t:"18:15", n:"Trevi Fountain", lat:41.9009,lng:12.4833, d:"Then back towards the flat for dinner."}
+   ]},
+   {key:"thu", label:"Thu 17", title:"Slow morning", stops:[
+    {t:"09:00", n:"Pantheon", lat:41.8986,lng:12.4769, d:"The one ticket of the morning. First slot is the quiet one.", book:true},
+    {t:"09:45", n:"Giolitti", lat:41.9002,lng:12.4763, d:"Gelato before ten is a legitimate Roman position."},
+    {t:"10:15", n:"Jewish Ghetto", lat:41.8925,lng:12.4780, d:"Turtle Fountain, the portico, and the bakery on Via del Portico d'Ottavia.", via:{m:1000,min:13}},
+    {t:"11:00", n:"Tiber Island", lat:41.8903,lng:12.4776, d:"Cross the Ponte Fabricio, the oldest bridge still in use, and come back."},
+    {t:"11:45", n:"Via in Lucina 10", lat:41.9017,lng:12.4783, d:"Fifteen minutes back to the flat.", home:true, via:{m:1400,min:18}}
+   ]}
+  ]
+ }
+];
+
+const WALK_FACTOR = 1.35;   /* street detour vs straight line */
+const PACE = 70;            /* metres per minute, about 4.2 km/h */
+
+let planIdx = 0, dayKey = "all";
+let layers = [];
+
+const map = L.map('map',{zoomControl:true}).setView([41.897,12.478],14);
+const tiles = L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png',{
+  maxZoom:19, attribution:'&copy; OpenStreetMap contributors'
+}).addTo(map);
+let tileFails=0;
+tiles.on('tileerror',()=>{ if(++tileFails>4) document.getElementById('tilewarn').style.display='block'; });
+
+function crow(a,b){
+  const R=6371000,p=Math.PI/180,dLat=(b.lat-a.lat)*p,dLng=(b.lng-a.lng)*p;
+  const h=Math.sin(dLat/2)**2+Math.cos(a.lat*p)*Math.cos(b.lat*p)*Math.sin(dLng/2)**2;
+  return 2*R*Math.asin(Math.sqrt(h));
+}
+function legOf(prev,cur){
+  const v=cur.via||{};
+  if(v.mode==="metro") return {mode:"metro", m:null, min:v.min};
+  const m = v.m || Math.round(crow(prev,cur)*WALK_FACTOR/10)*10;
+  const min = v.min || Math.max(1,Math.round(m/PACE));
+  return {mode:"walk", m, min};
+}
+function fmtM(m){ return m>=1000 ? (m/1000).toFixed(1).replace('.0','')+" km" : m+" m"; }
+function legText(l){
+  return l.mode==="metro" ? "metro, "+l.min+" min" : fmtM(l.m)+" \u00b7 "+l.min+" min";
+}
+function shade(hex,amt){ /* amt>0 lighten, <0 darken */
+  const n=parseInt(hex.slice(1),16);
+  let r=n>>16, g=(n>>8)&255, b=n&255;
+  const t=amt>0?255:0, p=Math.abs(amt);
+  r=Math.round(r+(t-r)*p); g=Math.round(g+(t-g)*p); b=Math.round(b+(t-b)*p);
+  return "#"+((1<<24)+(r<<16)+(g<<8)+b).toString(16).slice(1);
+}
+function dayTint(plan,i){ return i===0?shade(plan.color,.3):(i===1?plan.color:shade(plan.color,-.3)); }
+
+const plansEl=document.getElementById('plans');
+PLANS.forEach((p,i)=>{
+  const b=document.createElement('button');
+  b.className='plan-tab'; b.type='button'; b.setAttribute('role','tab');
+  b.innerHTML='<b>'+p.name+'</b>'+p.label;
+  b.onclick=()=>{planIdx=i;dayKey="all";render();};
+  plansEl.appendChild(b);
+});
+
+function render(){
+  const plan=PLANS[planIdx];
+  document.documentElement.style.setProperty('--accent',plan.color);
+  [...plansEl.children].forEach((b,i)=>b.setAttribute('aria-selected',i===planIdx));
+
+  const daysEl=document.getElementById('days'); daysEl.innerHTML='';
+  const chips=[{key:'all',label:'Whole trip'}].concat(plan.days);
+  chips.forEach((d,i)=>{
+    const b=document.createElement('button');
+    b.className='day-chip'; b.type='button';
+    b.innerHTML=(i>0?'<i style="background:'+dayTint(plan,i-1)+'"></i>':'')+d.label;
+    b.setAttribute('aria-pressed',dayKey===d.key);
+    b.onclick=()=>{dayKey=d.key;render();};
+    daysEl.appendChild(b);
+  });
+
+  layers.forEach(l=>map.removeLayer(l)); layers=[];
+  const list=document.getElementById('list'); list.innerHTML='';
+  const bounds=[];
+
+  plan.days.forEach((day,di)=>{
+    if(dayKey!=='all' && day.key!==dayKey) return;
+    const tint=dayTint(plan,di);
+    let totalM=0, totalMin=0;
+    const legs=day.stops.map((s,i)=> i===0?null:legOf(day.stops[i-1],s));
+    legs.forEach(l=>{ if(l&&l.mode==='walk'){ totalM+=l.m; totalMin+=l.min; } });
+
+    const g=document.createElement('section'); g.className='daygroup';
+    const h=document.createElement('div'); h.className='dayhead';
+    h.innerHTML='<h2><i style="background:'+tint+'"></i>'+day.label+' \u00b7 '+day.title+'</h2>'+
+      '<span>'+day.stops.length+' stops<br>'+fmtM(Math.round(totalM/10)*10)+' walking, about '+totalMin+' min</span>';
+    g.appendChild(h);
+
+    day.stops.forEach((s,si)=>{
+      bounds.push([s.lat,s.lng]);
+      const leg=legs[si];
+
+      if(leg){
+        const prev=day.stops[si-1];
+        const seg=L.polyline([[prev.lat,prev.lng],[s.lat,s.lng]],{
+          color:tint, weight:3, opacity:.8,
+          dashArray: leg.mode==='metro' ? '2 8' : null, lineCap:'round'
+        }).addTo(map);
+        layers.push(seg);
+        const mid=L.latLng((prev.lat+s.lat)/2,(prev.lng+s.lng)/2);
+        const pill=L.marker(mid,{interactive:false, icon:L.divIcon({
+          className:'', iconSize:null,
+          html:'<div class="leg-pill" style="color:'+shade(tint,-.15)+'">'+legText(leg)+'</div>'
+        })}).addTo(map);
+        layers.push(pill);
+
+        const row=document.createElement('div');
+        row.className='leg'+(leg.mode==='metro'?' metro':'');
+        row.innerHTML='<span class="rule"></span><span></span><span class="val">'+
+          (leg.mode==='metro'?'\u2193 metro, about '+leg.min+' min':'\u2193 '+fmtM(leg.m)+', about '+leg.min+' min on foot')+'</span>';
+        g.appendChild(row);
+      }
+
+      const label = s.home ? '\u2302' : String(si+1);
+      const icon=L.divIcon({className:'',iconSize:[26,26],iconAnchor:[13,13],
+        html: s.home ? '<div class="marker-home">\u2302</div>'
+                     : '<div class="marker-num" style="background:'+tint+'">'+(si+1)+'</div>'});
+      const m=L.marker([s.lat,s.lng],{icon, zIndexOffset: s.home?1000:0}).addTo(map);
+      m.bindPopup('<b>'+s.n+'</b><br><span class="meta">'+day.label+
+        (s.home?' \u00b7 base':' \u00b7 stop '+(si+1)+' of '+day.stops.length)+' \u00b7 '+s.t+'</span><br>'+s.d+
+        '<br><a target="_blank" rel="noopener" href="https://www.openstreetmap.org/?mlat='+s.lat+'&mlon='+s.lng+'#map=18/'+s.lat+'/'+s.lng+'">Open in OpenStreetMap</a>');
+      layers.push(m);
+
+      const row=document.createElement('button');
+      row.className='stop'; row.type='button';
+      row.innerHTML='<span class="pin'+(s.home?' home':'')+'" style="'+(s.home?'':'background:'+tint)+'">'+label+'</span>'+
+        '<span class="when">'+s.t+'</span>'+
+        '<span class="what"><strong>'+s.n+'</strong><em>'+s.d+'</em>'+
+        (s.book?'<span class="book" style="color:'+tint+'">book ahead</span>':'')+'</span>';
+      row.onclick=()=>{
+        map.flyTo([s.lat,s.lng],17,{duration:.6}); m.openPopup();
+        [...document.querySelectorAll('.stop')].forEach(x=>x.classList.remove('is-active'));
+        row.classList.add('is-active');
+      };
+      g.appendChild(row);
+    });
+    list.appendChild(g);
+  });
+
+  if(bounds.length) map.fitBounds(bounds,{padding:[45,45]});
+  document.getElementById('foot').textContent =
+    plan.blurb+' Numbers restart each day; the flat is marked with a house symbol. Distances are estimated from the straight line plus a third for real streets.';
+  list.scrollTop=0;
+}
+render();
+</script>
+</body>
+</html>
